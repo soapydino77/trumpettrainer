@@ -39,17 +39,15 @@
       font-weight: bold;
       cursor: pointer;
       transition: all 0.2s ease;
-      flex: 1 1 calc(50% - 12px); /* responsive 2-column layout */
-      max-width: 160px;            /* keeps buttons from being too wide */
+      flex: 1 1 calc(50% - 12px);
+      max-width: 160px;
       text-align: center;
     }
-
     @media (min-width: 600px) {
       .scale-btn {
         flex: 1 1 calc(25% - 12px);
       }
     }
-
     .scale-btn:hover,
     .scale-btn.active {
       background: #bb86fc;
@@ -60,6 +58,14 @@
       color: #bb86fc;
       margin: 20px 0 8px;
       font-weight: 700;
+    }
+    #timer {
+      font-size: 1.8rem;
+      color: #4caf50;
+      margin-bottom: 12px;
+      font-variant-numeric: tabular-nums;
+      min-width: 120px;
+      text-align: center;
     }
     #sheet {
       width: 90vw;
@@ -110,7 +116,6 @@
       color: #e0e0e0;
       pointer-events: none;
     }
-
     #open-button {
       width: 100%;
       max-width: 360px;
@@ -127,13 +132,11 @@
       cursor: pointer;
       transition: all 0.2s ease;
     }
-
     #open-button:active {
       background-color: #4caf50;
       color: #000;
       transform: scale(0.96);
     }
-
     #feedback {
       font-size: 1.6rem;
       margin: 15px 0 0;
@@ -144,25 +147,26 @@
 </head>
 <body>
 
-<h1>🎼 Scale Trainer</h1>
-<div id="scale-selector"></div>
-<div id="note"></div>
-<canvas id="sheet" width="350" height="130"></canvas>
-<div id="valves">
-  <div class="valve" data-valve="1" tabindex="0"><div class="valve-label">1</div></div>
-  <div class="valve" data-valve="2" tabindex="0"><div class="valve-label">2</div></div>
-  <div class="valve" data-valve="3" tabindex="0"><div class="valve-label">3</div></div>
-</div>
-<br>
-<button id="open-button">Open</button>
-<div id="feedback">Click on a scale to select it.</div>
+  <h1>🎼 Scale Trainer</h1>
+  <div id="scale-selector"></div>
+  <div id="note"></div>
+  <div id="timer">00:00.00</div>
+  <canvas id="sheet" width="350" height="130"></canvas>
+  <div id="valves">
+    <div class="valve" data-valve="1" tabindex="0"><div class="valve-label">1</div></div>
+    <div class="valve" data-valve="2" tabindex="0"><div class="valve-label">2</div></div>
+    <div class="valve" data-valve="3" tabindex="0"><div class="valve-label">3</div></div>
+  </div>
+  <br>
+  <button id="open-button">Open</button>
+  <div id="feedback">Click on a scale to select it.</div>
 
-<script type="module">
-  import {
-    Renderer, Stave, StaveNote, Voice, Formatter, Accidental
-  } from "https://cdn.jsdelivr.net/npm/vexflow@4.2.3/build/esm/entry/vexflow.js";
+  <script type="module">
+    import {
+      Renderer, Stave, StaveNote, Voice, Formatter, Accidental
+    } from "https://cdn.jsdelivr.net/npm/vexflow@4.2.3/build/esm/entry/vexflow.js";
 
-  const scaleNotes = {
+    const scaleNotes = {
     C:  [
       "C4","D4","E4","F4","G4","A4","B4","C5",    // ascending
       "B4","A4","G4","F4","E4","D4","C4",    // descending
@@ -239,160 +243,163 @@
     "C#4":[1,2,3], "E5":[]
   };
 
-  const scaleSelector = document.getElementById("scale-selector");
-  const canvas = document.getElementById("sheet");
-  const noteEl = document.getElementById("note");
-  const feedbackEl = document.getElementById("feedback");
-  const renderer = new Renderer(canvas, Renderer.Backends.CANVAS);
-  renderer.resize(350, 130);
-  const context = renderer.getContext();
-  const valves = Array.from(document.querySelectorAll(".valve"));
-  const pressed = new Set();
+    const scaleSelector = document.getElementById("scale-selector");
+    const canvas = document.getElementById("sheet");
+    const noteEl = document.getElementById("note");
+    const timerEl = document.getElementById("timer");
+    const feedbackEl = document.getElementById("feedback");
+    const renderer = new Renderer(canvas, Renderer.Backends.CANVAS);
+    renderer.resize(350, 130);
+    const context = renderer.getContext();
+    const valves = Array.from(document.querySelectorAll(".valve"));
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-  let currentScale = [];
-  let scaleIndex = 0;
+    let currentScale = [], scaleIndex = 0;
+    let pressed = new Set();
+    let startTime = null, timerInterval = null;
 
-  // AudioContext & trumpet-like sound setup
-  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-  function playTrumpet(freq) {
-    if (!freq) return;
-
-    const osc1 = audioCtx.createOscillator();
-    const osc2 = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    const now = audioCtx.currentTime;
-
-    // Oscillator 1: main tone, triangle waveform for warmer brass feel
-    osc1.type = "triangle";
-    osc1.frequency.setValueAtTime(freq, now);
-
-    // Oscillator 2: detuned slightly for richness (like 1-2 cents)
-    osc2.type = "triangle";
-    osc2.frequency.setValueAtTime(freq * 1.01, now);
-
-    // Gain envelope for attack and release
-    gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(0.2, now + 0.02); // quick attack
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 1); // decay
-
-    // Connect nodes
-    osc1.connect(gain);
-    osc2.connect(gain);
-    gain.connect(audioCtx.destination);
-
-    // Start and stop oscillators
-    osc1.start(now);
-    osc2.start(now);
-    osc1.stop(now + 1);
-    osc2.stop(now + 1);
-  }
-
-  function drawNote(noteName) {
-    context.clearRect(0, 0, 350, 130);
-    const stave = new Stave(50, 20, 250);
-    stave.addClef("treble").setContext(context).draw();
-
-    const match = noteName.match(/^([A-Ga-g])([#b]?)(\d)$/);
-    const [, letter, accidental, octave] = match;
-    const key = letter.toLowerCase() + "/" + octave;
-
-    const note = new StaveNote({ clef: "treble", keys: [key], duration: "q" });
-    if (accidental === "#") note.addModifier(new Accidental("#"), 0);
-    if (accidental === "b") note.addModifier(new Accidental("b"), 0);
-    if (octave > 4 || (octave == 4 && letter === "B")) {
-      note.setStemDirection(-1);
+    function playTrumpet(freq) {
+      if (!freq) return;
+      const osc1 = audioCtx.createOscillator();
+      const osc2 = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      const now = audioCtx.currentTime;
+      osc1.type = "triangle"; osc2.type = "triangle";
+      osc1.frequency.setValueAtTime(freq, now);
+      osc2.frequency.setValueAtTime(freq * 1.01, now);
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.2, now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 1);
+      osc1.connect(gain); osc2.connect(gain); gain.connect(audioCtx.destination);
+      osc1.start(now); osc2.start(now);
+      osc1.stop(now + 1); osc2.stop(now + 1);
     }
 
-    const voice = new Voice({ num_beats: 1, beat_value: 4 });
-    voice.addTickables([note]);
-    new Formatter().joinVoices([voice]).format([voice], 250);
-    voice.draw(context, stave);
-  }
-
-  function getFrequency(note) {
-    const regex = /^([A-Ga-g])([#b]?)(\d)$/;
-    const match = note.match(regex);
-    if (!match) return null;
-    let [_, n, acc, oct] = match;
-    n = n.toUpperCase();
-    const map = { C:0, D:2, E:4, F:5, G:7, A:9, B:11 };
-    let semitone = map[n] + (acc === "#" ? 1 : acc === "b" ? -1 : 0);
-    let midi = (parseInt(oct)+1)*12 + semitone - 2;
-    return 440 * Math.pow(2, (midi - 69) / 12);
-  }
-
-  function nextNote() {
-    if (scaleIndex >= currentScale.length) {
-      feedbackEl.textContent = "🎉 Scale Complete!";
-      feedbackEl.style.color = "#4caf50";
-      return;
+    function drawNote(noteName) {
+      context.clearRect(0, 0, 350, 130);
+      const stave = new Stave(50, 20, 250);
+      stave.addClef("treble").setContext(context).draw();
+      const [, letter, accidental, octave] = noteName.match(/^([A-Ga-g])([#b]?)(\d)$/);
+      const key = letter.toLowerCase() + "/" + octave;
+      const note = new StaveNote({ clef: "treble", keys: [key], duration: "q" });
+      if (accidental === "#") note.addModifier(new Accidental("#"), 0);
+      if (accidental === "b") note.addModifier(new Accidental("b"), 0);
+      if (octave > 4 || (octave == 4 && letter === "B")) note.setStemDirection(-1);
+      const voice = new Voice({ num_beats: 1, beat_value: 4 });
+      voice.addTickables([note]);
+      new Formatter().joinVoices([voice]).format([voice], 250);
+      voice.draw(context, stave);
     }
-    const note = currentScale[scaleIndex];
-    drawNote(note);
-    noteEl.textContent = note;
-    feedbackEl.textContent = "";
-  }
 
-  function checkAnswer() {
-    const note = currentScale[scaleIndex];
-    const expected = fingerings[note] || [];
-    const actual = Array.from(pressed).sort();
-    const correct = expected.length === actual.length && expected.every((v,i) => v === actual[i]);
-
-    if (correct) {
-      feedbackEl.textContent = "✅ Correct!";
-      feedbackEl.style.color = "#4caf50";
-      playTrumpet(getFrequency(note));
-      scaleIndex++;
-      setTimeout(nextNote, 700);
-    } else {
-      feedbackEl.textContent = "❌ Try Again";
-      feedbackEl.style.color = "#f44336";
+    function getFrequency(note) {
+      const m = note.match(/^([A-G])([#b]?)(\d)$/);
+      let [_, n, acc, oct] = m;
+      const map = { C:0, D:2, E:4, F:5, G:7, A:9, B:11 };
+      let sem = map[n] + (acc === "#" ? 1 : acc === "b" ? -1 : 0);
+      let midi = (parseInt(oct)+1)*12 + sem - 2;
+      return 440 * Math.pow(2, (midi - 69) / 12);
     }
-  }
 
-  valves.forEach(v => {
-    const n = Number(v.dataset.valve);
-    const down = () => { pressed.add(n); v.classList.add("pressed"); checkAnswer(); };
-    const up = () => { pressed.delete(n); v.classList.remove("pressed"); };
-    v.addEventListener("mousedown", down);
-    v.addEventListener("mouseup", up);
-    v.addEventListener("touchstart", e => { e.preventDefault(); down(); }, { passive: false });
-    v.addEventListener("touchend", up);
-  });
-
-  Object.keys(scaleNotes).forEach(scale => {
-    const btn = document.createElement("button");
-    btn.className = "scale-btn";
-    btn.textContent = scale + " Major";
-    btn.onclick = () => {
-      document.querySelectorAll(".scale-btn").forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-      currentScale = scaleNotes[scale];
-      scaleIndex = 0;
-      pressed.clear();
-      valves.forEach(v => v.classList.remove("pressed"));
-      nextNote();
-    };
-    scaleSelector.appendChild(btn);
-  });
-
-  document.getElementById("open-button").addEventListener("click", () => {
-    const note = currentScale[scaleIndex];
-    const expected = fingerings[note] || [];
-    if (expected.length === 0) {
-      feedbackEl.textContent = "✅ Correct (Open)!";
-      feedbackEl.style.color = "#4caf50";
-      playTrumpet(getFrequency(note));
-      scaleIndex++;
-      setTimeout(nextNote, 700);
-    } else {
-      feedbackEl.textContent = "❌ Not Open";
-      feedbackEl.style.color = "#f44336";
+    function formatElapsed(ms) {
+      const total = ms / 1000;
+      const minutes = Math.floor(total / 60).toString().padStart(2,'0');
+      const seconds = (total % 60).toFixed(2).padStart(5,'0');
+      return `${minutes}:${seconds}`;
     }
-  });
-</script>
+
+    function startTimer() {
+      startTime = performance.now();
+      timerEl.textContent = "00:00.00";
+      clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        const elapsed = performance.now() - startTime;
+        timerEl.textContent = formatElapsed(elapsed);
+      }, 50);
+    }
+
+    function stopTimer() {
+      clearInterval(timerInterval);
+      const total = performance.now() - startTime;
+      timerEl.textContent = formatElapsed(total);
+    }
+
+    function nextNote() {
+      if (scaleIndex >= currentScale.length) {
+        feedbackEl.textContent = `🎉 Complete! Time: ${timerEl.textContent}`;
+        feedbackEl.style.color = "#4caf50";
+        stopTimer();
+        return;
+      }
+      drawNote(currentScale[scaleIndex]);
+      noteEl.textContent = currentScale[scaleIndex];
+      feedbackEl.textContent = "";
+    }
+
+    function checkAnswer() {
+      const note = currentScale[scaleIndex];
+      const expected = fingerings[note] || [];
+      const actual = Array.from(pressed).sort();
+      const correct = expected.length === actual.length && expected.every((v,i)=>v===actual[i]);
+      if (correct) {
+        if (scaleIndex === 0) startTimer();
+        feedbackEl.textContent = "✅ Correct!";
+        feedbackEl.style.color = "#4caf50";
+        playTrumpet(getFrequency(note));
+        scaleIndex++;
+        setTimeout(nextNote, 700);
+      } else {
+        feedbackEl.textContent = "❌ Try Again";
+        feedbackEl.style.color = "#f44336";
+      }
+    }
+
+    valves.forEach(v => {
+      const n = +v.dataset.valve;
+      const down = () => { pressed.add(n); v.classList.add("pressed"); checkAnswer(); };
+      const up   = () => { pressed.delete(n); v.classList.remove("pressed"); };
+      v.addEventListener("mousedown", down);
+      v.addEventListener("mouseup",   up);
+      v.addEventListener("touchstart", e=>{e.preventDefault(); down();}, { passive: false });
+      v.addEventListener("touchend",  up);
+    });
+
+    // Populate scale buttons
+    Object.keys(scaleNotes).forEach(scale => {
+      const btn = document.createElement("button");
+      btn.className = "scale-btn";
+      btn.textContent = scale + " Major";
+      btn.onclick = () => {
+        document.querySelectorAll(".scale-btn").forEach(b=>b.classList.remove("active"));
+        btn.classList.add("active");
+        currentScale = scaleNotes[scale];
+        scaleIndex = 0;
+        pressed.clear();
+        valves.forEach(v=>v.classList.remove("pressed"));
+        startTime = null;
+        clearInterval(timerInterval);
+        timerEl.textContent = "00:00.00";
+        nextNote();
+      };
+      scaleSelector.appendChild(btn);
+    });
+
+    document.getElementById("open-button").addEventListener("click", () => {
+      const note = currentScale[scaleIndex];
+      const expected = fingerings[note] || [];
+      if (expected.length === 0) {
+        if (scaleIndex === 0) startTimer();
+        feedbackEl.textContent = "✅ Correct (Open)!";
+        feedbackEl.style.color = "#4caf50";
+        playTrumpet(getFrequency(note));
+        scaleIndex++;
+        setTimeout(nextNote, 700);
+      } else {
+        feedbackEl.textContent = "❌ Not Open";
+        feedbackEl.style.color = "#f44336";
+      }
+    });
+  </script>
 </body>
 </html>
+
 
