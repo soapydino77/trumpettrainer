@@ -2,309 +2,85 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-  <title>Trumpet</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Practice Hub</title>
   <style>
     body {
       margin: 0;
-      background: #0a0a0a;
-      color: #e0e0ff;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to bottom right, #0d001a, #1e0033);
+      color: white;
       display: flex;
-      flex-direction: column;
       align-items: center;
+      justify-content: center;
       min-height: 100vh;
-      padding: 20px 10px 40px;
-      -webkit-tap-highlight-color: transparent;
-      user-select: none;
+      padding: 1rem;
     }
-    h1 {
-      font-size: 2.4rem;
-      color: #d1a3ff;
-      margin-bottom: 12px;
+
+    .container {
       text-align: center;
-    }
-    #note {
-      font-size: 3rem;
-      color: #bb86fc;
-      margin: 20px 0 8px;
-      font-weight: 700;
-    }
-    #sheet {
-      width: 90vw;
-      max-width: 350px;
-      height: 130px;
-      border-radius: 12px;
-      background: #fff;
-      box-shadow: 0 0 15px #bb86fc66;
-      margin-bottom: 25px;
-      touch-action: none;
-    }
-    #valves {
-      display: flex;
-      justify-content: center;
-      gap: 25px;
-      margin-bottom: 15px;
+      padding: 2rem;
+      max-width: 800px;
       width: 100%;
-      max-width: 360px;
+      animation: fadeIn 1s ease;
     }
-    .valve {
-      flex: 1;
-      max-width: 100px;
-      aspect-ratio: 1 / 1;
-      border-radius: 50%;
-      background-color: #222;
-      border: 4px solid #bb86fc;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      position: relative;
-      box-shadow: inset 0 3px 8px #000000aa;
-      transition: background-color 0.25s ease, transform 0.15s ease;
+
+    .title {
+      font-size: 2.5rem;
+      margin-bottom: 0.5rem;
     }
-    .valve:active,
-    .valve.pressed {
-      background-color: #bb86fc;
-      transform: scale(0.92);
-      box-shadow: 0 0 12px #bb86fccc;
-    }
-    .valve-label {
-      position: absolute;
-      bottom: -30px;
-      width: 100%;
-      text-align: center;
-      font-family: monospace;
-      font-weight: bold;
+
+    .subtitle {
       font-size: 1.1rem;
-      color: #e0e0e0;
-      pointer-events: none;
+      margin-bottom: 2rem;
+      color: #bb99ff;
     }
-    #feedback {
-      font-size: 1.6rem;
-      margin: 15px 0 0;
-      min-height: 2.2rem;
-      font-weight: 700;
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1rem;
+      width: 100%;
     }
-    @media (min-width: 480px) {
-      body {
-        padding: 40px 30px 60px;
-      }
-      h1 {
-        font-size: 3rem;
-      }
-      #note {
-        font-size: 3.8rem;
-      }
+
+    .card {
+      background: rgba(255, 255, 255, 0.08);
+      padding: 1.5rem;
+      border-radius: 16px;
+      text-decoration: none;
+      color: white;
+      transition: transform 0.2s ease, background 0.2s ease;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(12px);
+    }
+
+    .card:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: scale(1.05);
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
     }
   </style>
 </head>
 <body>
+  <div class="container fade-in">
+    <h1 class="title">Practice Hub</h1>
+    <p class="subtitle">Choose your mode of practice</p>
 
-<h1>🎺</h1>
-<div id="note"></div>
-<canvas id="sheet" width="350" height="130"></canvas>
-<div id="valves">
-  <div class="valve" data-valve="1" tabindex="0"><div class="valve-label">1</div></div>
-  <div class="valve" data-valve="2" tabindex="0"><div class="valve-label">2</div></div>
-  <div class="valve" data-valve="3" tabindex="0"><div class="valve-label">3</div></div>
-</div>
-<div id="feedback"></div>
-
-<script type="module">
-  import {
-    Renderer,
-    Stave,
-    StaveNote,
-    Voice,
-    Formatter,
-    Accidental
-  } from "https://cdn.jsdelivr.net/npm/vexflow@4.2.3/build/esm/entry/vexflow.js";
-
-  const canvas = document.getElementById("sheet");
-  const renderer = new Renderer(canvas, Renderer.Backends.CANVAS);
-  renderer.resize(350, 130);
-  const context = renderer.getContext();
-
-  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-  function getFrequency(noteName) {
-    const noteRegex = /^([A-Ga-g])([#b]?)(\d)$/;
-    const match = noteName.match(noteRegex);
-    if (!match) return null;
-
-    let [_, note, accidental, octave] = match;
-    note = note.toUpperCase();
-    octave = parseInt(octave, 10);
-
-    const semitoneMap = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
-    let semitone = semitoneMap[note];
-    if (accidental === "#") semitone += 1;
-    if (accidental === "b") semitone -= 1;
-
-    let midi = (octave + 1) * 12 + semitone;
-    midi -= 2; // transpose down one whole step for trumpet concert pitch
-    return 440 * Math.pow(2, (midi - 69) / 12);
-  }
-
-  function playNote(noteName) {
-    const freq = getFrequency(noteName);
-    if (!freq) return;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.frequency.value = freq;
-    osc.type = "sine";
-    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1);
-    osc.connect(gain).connect(audioCtx.destination);
-    osc.start();
-    osc.stop(audioCtx.currentTime + 1);
-  }
-
-  function drawNoteOnSheet(noteName) {
-    context.clearRect(0, 0, 350, 130);
-    const stave = new Stave(50, 20, 250);
-    stave.addClef("treble").setContext(context).draw();
-    const match = noteName.match(/^([A-Ga-g])([#b]?)(\d)$/);
-    if (!match) return;
-    const [, baseNote, accidental, octave] = match;
-    const fullNote = baseNote.toLowerCase() + "/" + octave;
-    const note = new StaveNote({ clef: "treble", keys: [fullNote], duration: "q" });
-    if (accidental === "#") note.addModifier(new Accidental("#"), 0);
-    if (accidental === "b") note.addModifier(new Accidental("b"), 0);
-    const voice = new Voice({ num_beats: 1, beat_value: 4 });
-    voice.addTickables([note]);
-    new Formatter().joinVoices([voice]).format([voice], 250);
-    voice.draw(context, stave);
-  }
-
-  const notes = [
-    { note: "G3", fingering: [1,3] },
-    { note: "G#3", fingering: [2,3] },
-    { note: "Ab3", fingering: [2,3] },
-    { note: "A3", fingering: [1,2] },
-    { note: "A#3", fingering: [1] },
-    { note: "Bb3", fingering: [1] },
-    { note: "B3", fingering: [2] },
-    { note: "C#4", fingering: [1,2,3] },
-    { note: "Db4", fingering: [1,2,3] },
-    { note: "D4", fingering: [1,3] },
-    { note: "D#4", fingering: [2,3] },
-    { note: "Eb4", fingering: [2,3] },
-    { note: "E4", fingering: [1,2] },
-    { note: "F4", fingering: [1] },
-    { note: "F#4", fingering: [2] },
-    { note: "Gb4", fingering: [2] },
-    { note: "G#4", fingering: [2,3] },
-    { note: "Ab4", fingering: [2,3] },
-    { note: "A4", fingering: [1,2] },
-    { note: "A#4", fingering: [1] },
-    { note: "Bb4", fingering: [1] },
-    { note: "B4", fingering: [2] },
-    { note: "C#5", fingering: [1,2] },
-    { note: "Db5", fingering: [1,2] },
-    { note: "D5", fingering: [1] },
-    { note: "D#5", fingering: [2] },
-    { note: "Eb5", fingering: [2] },
-    { note: "F5", fingering: [1] },
-    { note: "F#5", fingering: [2] },
-    { note: "Gb5", fingering: [2] },
-    { note: "G#5", fingering: [2,3] },
-    { note: "Ab5", fingering: [2,3] },
-    { note: "A5", fingering: [1,2] },
-    { note: "A#5", fingering: [1] },
-    { note: "Bb5", fingering: [1] },
-    { note: "B5", fingering: [2] }
-  ];
-
-  let currentNote = null;
-  const pressed = new Set();
-  const valves = Array.from(document.querySelectorAll(".valve"));
-  const feedbackEl = document.getElementById("feedback");
-  const noteEl = document.getElementById("note");
-
-  function arraysEqual(a, b) {
-    if (a.length !== b.length) return false;
-    const sortedA = [...a].sort();
-    const sortedB = [...b].sort();
-    return sortedA.every((val, i) => val === sortedB[i]);
-  }
-
-  function nextNote() {
-    pressed.clear();
-    updateValvesUI();
-    currentNote = notes[Math.floor(Math.random() * notes.length)];
-    // noteEl.textContent = currentNote.note; // Removed to hide note name
-    feedbackEl.textContent = "";
-    drawNoteOnSheet(currentNote.note);
-  }
-
-
-  function updateValvesUI() {
-    valves.forEach(v => {
-      const valveNum = Number(v.dataset.valve);
-      v.classList.toggle("pressed", pressed.has(valveNum));
-    });
-  }
-
-  function checkAnswer() {
-    const correct = arraysEqual([...pressed], currentNote.fingering);
-    if (correct) {
-      feedbackEl.textContent = "✅ Correct!";
-      feedbackEl.style.color = "#4caf50";
-      playNote(currentNote.note);
-      setTimeout(nextNote, 600);
-    } else {
-      feedbackEl.textContent = "❌ Try Again";
-      feedbackEl.style.color = "#f44336";
-    }
-  }
-
-  function onPress(valveNum) {
-    pressed.add(valveNum);
-    updateValvesUI();
-    checkAnswer();
-  }
-
-  function onRelease(valveNum) {
-    pressed.delete(valveNum);
-    updateValvesUI();
-  }
-
-  function init() {
-    valves.forEach(v => {
-      const valveNum = Number(v.dataset.valve);
-      v.addEventListener("touchstart", e => {
-        e.preventDefault();
-        onPress(valveNum);
-      }, { passive: false });
-      v.addEventListener("touchend", () => onRelease(valveNum));
-      v.addEventListener("touchcancel", () => onRelease(valveNum));
-      v.addEventListener("mousedown", () => onPress(valveNum));
-      v.addEventListener("mouseup", () => onRelease(valveNum));
-      v.addEventListener("mouseleave", () => onRelease(valveNum));
-    });
-    nextNote();
-  }
-
-  init();
-  // Keyboard controls for PC testing
-    document.addEventListener("keydown", (e) => {
-      const key = e.key;
-      if (["1", "2", "3"].includes(key)) {
-        const valveNum = Number(key);
-        if (!pressed.has(valveNum)) {
-          onPress(valveNum);
-        }
-      }
-    });
-
-    document.addEventListener("keyup", (e) => {
-      const key = e.key;
-      if (["1", "2", "3"].includes(key)) {
-        const valveNum = Number(key);
-        onRelease(valveNum);
-      }
-    });
-</script>
+    <div class="card-grid">
+      <a href="scales.html" class="card">
+        <h2>🎵 Scale Practice</h2>
+        <p>Practice your scales with visual feedback and sound.</p>
+      </a>
+      <a href="random.html" class="card">
+        <h2>🧠 Note Quiz</h2>
+        <p>Test your note knowledge with a fast-paced challenge.</p>
+      </a>
+    </div>
+  </div>
 </body>
 </html>
+
